@@ -3,7 +3,7 @@ import string
 import random
 import requests
 from typing import Tuple
-from time import sleep
+from time import sleep, time
 
 # basic constants for Seagate Lyve APIs
 AuthEndpoint = "https://auth.lyve.seagate.com"
@@ -95,13 +95,21 @@ print(f"key: [{key}]; secret: [{secret}]")
 # craete an S3 client
 client = boto3.client("s3", region_name=region,  endpoint_url=s3_endpoint, aws_access_key_id=key, aws_secret_access_key=secret)
 
-# sleeping 5 seconds, as requested by Seagate Lyve engineers
-sleep(5)
-
-# time to create a bucket at specified endpoint
 print(f"trying to create a bucket [{bucket_name}] at endpoint [{s3_endpoint}]")
-client.create_bucket(Bucket=bucket_name)
 
+t_start = time()
+while True:
+    # time to create a bucket at specified endpoint
+    try:
+        client.create_bucket(Bucket=bucket_name)
+        break
+    except:
+        print("failed to create a bucket, sleeping...")
+        sleep(5)
+        continue
 
-# only possible to see next message at us-east-1
-print("bucket successfully created")
+# calculating the time it took
+t_end = time() - t_start
+
+# only possible to see the next message if bucket was successfully created
+print(f"bucket successfully created in [{t_end:.2f} sec]")
