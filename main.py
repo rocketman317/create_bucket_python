@@ -95,6 +95,9 @@ print(f"key: [{key}]; secret: [{secret}]")
 # craete an S3 client
 client = boto3.client("s3", region_name=region,  endpoint_url=s3_endpoint, aws_access_key_id=key, aws_secret_access_key=secret)
 
+# sleeping 5 seconds, as requested by Seagate Lyve engineers
+sleep(5)
+
 # time to create a bucket at specified endpoint
 print(f"trying to create a bucket [{bucket_name}] at endpoint [{s3_endpoint}]")
 client.create_bucket(Bucket=bucket_name)
