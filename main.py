@@ -15,43 +15,48 @@ def get_random_string(length) -> str:
     result_str = ''.join(random.choice(letters) for i in range(length))
     return result_str
 
-def authenticate(clientId: str, clientSecret: str) -> str:
+def authenticate(accountId: str, clientId: str, clientSecret: str) -> str:
     # authenticate with Seagate Lyve
     request = {
-        "client_id": clientId,
-        "client_secret": clientSecret,
-        "audience": "https://lyvecloud/customer/api",
-        "grant_type": "client_credentials",
+        "accountId": accountId,
+        "accessKey": clientId,
+        "secret": clientSecret,
     }
-    response = requests.post(f"{AuthEndpoint}/oauth/token", json=request)
+    response = requests.post(f"{ApiEndpoint}/v2/auth/token", json=request)
 
-    print("successfully authenticated")
-    return response.json()["access_token"]
+    if response.status_code != 200:
+        raise Exception(f"authentication failed: {response.status_code} => {response.text}")
+
+    print(f"successfully authenticated")
+    return response.json()["token"]
 
 def create_permission(accessToken: str, prefix: str) -> str:
     # create a permission for the future service account
-    prefixed = f"{prefix}*"
     request = {
         "name": prefix,
         "description": prefix,
+        "type": "bucket-prefix",
         "actions": "all-operations",
-        "buckets": [prefixed],
+        "prefix": f"{prefix}*",
     }
-    response = requests.put(
-        f"{ApiEndpoint}/v1/permission",
+    response = requests.post(
+        f"{ApiEndpoint}/v2/permissions",
         json=request,
         headers={"Authorization": f"Bearer {accessToken}",},
     )
+
+    if response.status_code != 200:
+        raise Exception(f"create permission failed: {response.status_code} => {response.text}")
 
     permissionId = response.json()["id"]
     print(f"successfully created permission for [{prefixed}]: {permissionId}")
     return permissionId
 
-def create_service_account(clientId: str, clientSecret: str, prefix: str) -> Tuple[str, str]:
+def create_service_account(accountId: str, clientId: str, clientSecret: str, prefix: str) -> Tuple[str, str]:
     # create a Seagate Lyve service account
 
     # authenticate with Seagate Lyve
-    accessToken = authenticate(clientId, clientSecret)
+    accessToken = authenticate(accountId, clientId, clientSecret)
 
     # create a permission for the future service account
     permissionId = create_permission(accessToken, prefix)
@@ -62,11 +67,15 @@ def create_service_account(clientId: str, clientSecret: str, prefix: str) -> Tup
         "description": f"Service account for {prefix}",
         "permissions": [permissionId,],
     }
-    response = requests.put(
-        f"{ApiEndpoint}/v1/service-account",
+    response = requests.post(
+        f"{ApiEndpoint}/v2/service-accounts",
         json=request,
         headers={"Authorization": f"Bearer {accessToken}",},
     )
+
+    if response.status_code != 200:
+        raise Exception(f"create service account failed: {response.status_code} => {response.text}")
+
     print(f"successfully created service account [{prefix}]")
     return response.json()["access_key"], response.json()["access_secret"]
 
@@ -78,17 +87,21 @@ s3_endpoint = f"https://s3.{region}.lyvecloud.seagate.com"
 bucket_name = f"{prefix}-{region}"
 
 # might be provided right here, or will be requested via input
+accountId = ""
 clientId = ""
 accessSecret = ""
 
+if accountId == "" :
+    accountId = input("Enter Seagate Lyve accountId: ")
+
 if clientId == "" :
-    clientId = input("Enter Seagate Lyve clientId: ")
+    clientId = input("Enter Seagate Lyve accessKey: ")
 
 if accessSecret == "":
     accessSecret = input("Enter Seagate Lyve secret: ")
 
 # create a Seagate Lyve service account
-key, secret = create_service_account(clientId, accessSecret, prefix)
+key, secret = create_service_account(accountId, clientId, accessSecret, prefix)
 
 print(f"key: [{key}]; secret: [{secret}]")
 
@@ -105,7 +118,7 @@ while True:
         break
     except:
         print("failed to create a bucket, sleeping...")
-        sleep(5)
+        sleep(1)
         continue
 
 # calculating the time it took
@@ -113,3 +126,6 @@ t_end = time() - t_start
 
 # only possible to see the next message if bucket was successfully created
 print(f"bucket successfully created in [{t_end:.2f} sec]")
+
+# delete the bucket
+client.delete_bucket(Bucket=bucket_name)
