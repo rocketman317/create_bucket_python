@@ -37,7 +37,7 @@ def create_permission(accessToken: str, prefix: str) -> str:
         "description": prefix,
         "type": "bucket-prefix",
         "actions": "all-operations",
-        "prefix": f"{prefix}*",
+        "prefix": prefix,
     }
     response = requests.post(
         f"{ApiEndpoint}/v2/permissions",
@@ -72,10 +72,6 @@ def create_service_account(accountId: str, clientId: str, clientSecret: str, pre
         json=request,
         headers={"Authorization": f"Bearer {accessToken}",},
     )
-
-    if response.status_code != 200:
-        raise Exception(f"create service account failed: {response.status_code} => {response.text}")
-
     print(f"successfully created service account [{prefix}]")
     return response.json()["access_key"], response.json()["access_secret"]
 
